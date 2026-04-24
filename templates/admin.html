@@ -1,0 +1,439 @@
+{% extends "base.html" %}
+{% block title %}Patient History — The Ethereal Clinic{% endblock %}
+
+{% block extra_head %}
+<style>
+  @keyframes slide-up {
+    from { opacity:0; transform:translateY(16px); }
+    to   { opacity:1; transform:translateY(0); }
+  }
+  .slide-up { animation: slide-up .3s ease forwards; }
+  .label-badge { display:inline-block; padding:2px 8px; border-radius:9999px; font-size:10px; font-weight:700; text-transform:uppercase; letter-spacing:.05em; }
+  .label-Anxiety              { background:#ffdbcc; color:#351000; }
+  .label-Depression           { background:#ffdad6; color:#93000a; }
+  .label-Stress               { background:#fff3cd; color:#664d03; }
+  .label-Normal               { background:#cfe9d2; color:#0a2012; }
+  .label-Bipolar              { background:#e8def8; color:#21005d; }
+  .label-Suicidal             { background:#ffdad6; color:#93000a; border:1px solid #ba1a1a; }
+  .label-Manual               { background:#e8f4fd; color:#0d47a1; }
+  .label-Unknown              { background:#eceeee; color:#3f4948; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="max-w-7xl mx-auto px-4 md:px-8 py-8 pb-28 md:pb-8">
+
+  <!-- Page header -->
+  <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-8">
+    <div>
+      <h2 class="text-2xl font-bold text-primary editorial tracking-tight">Patient History</h2>
+      <p class="text-sm text-secondary mt-1">All sessions, BERT labels, and full message logs</p>
+    </div>
+    <div class="flex gap-2 flex-wrap">
+      <a href="/admin/export-all/json"
+         class="flex items-center gap-2 px-4 py-2 bg-primary text-white rounded-full text-xs font-bold uppercase tracking-wider hover:opacity-90 transition-all active:scale-95">
+        <span class="material-symbols-outlined text-[16px]">download</span>
+        Export All JSON
+      </a>
+      <button onclick="confirmDeleteAll()"
+              class="flex items-center gap-2 px-4 py-2 bg-error text-on-error rounded-full text-xs font-bold uppercase tracking-wider hover:opacity-90 transition-all active:scale-95">
+        <span class="material-symbols-outlined text-[16px]">delete_sweep</span>
+        Delete All
+      </button>
+      <a href="/admin/logout"
+         class="flex items-center gap-2 px-4 py-2 bg-surface-container text-secondary rounded-full text-xs font-bold uppercase tracking-wider hover:opacity-90 transition-all active:scale-95">
+        <span class="material-symbols-outlined text-[16px]">logout</span>
+        Logout
+      </a>
+    </div>
+  </div>
+
+  <!-- Stats cards -->
+  <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8" id="stats-cards">
+    <div class="bg-surface-container-lowest rounded-2xl p-5 border border-outline-variant/10">
+      <p class="text-[10px] font-bold text-secondary uppercase tracking-widest mb-1">Total Sessions</p>
+      <p id="stat-sessions" class="text-3xl font-black text-primary">—</p>
+    </div>
+    <div class="bg-surface-container-lowest rounded-2xl p-5 border border-outline-variant/10">
+      <p class="text-[10px] font-bold text-secondary uppercase tracking-widest mb-1">Total Messages</p>
+      <p id="stat-messages" class="text-3xl font-black text-primary">—</p>
+    </div>
+    <div class="bg-surface-container-lowest rounded-2xl p-5 border border-outline-variant/10">
+      <p class="text-[10px] font-bold text-secondary uppercase tracking-widest mb-1">Top Label</p>
+      <p id="stat-top-label" class="text-xl font-black text-tertiary">—</p>
+    </div>
+    <div class="bg-surface-container-lowest rounded-2xl p-5 border border-outline-variant/10">
+      <p class="text-[10px] font-bold text-secondary uppercase tracking-widest mb-1">AI Engine</p>
+      <p id="stat-gemini" class="text-sm font-bold">—</p>
+    </div>
+  </div>
+
+  <!-- Label distribution -->
+  <div class="bg-surface-container-lowest rounded-2xl p-6 border border-outline-variant/10 mb-8">
+    <h3 class="text-sm font-bold text-primary mb-4 flex items-center gap-2">
+      <span class="material-symbols-outlined text-[18px]">bar_chart</span>
+      Label Distribution
+    </h3>
+    <div id="label-bars" class="space-y-2"></div>
+  </div>
+
+  <!-- Search + filter -->
+  <div class="flex gap-3 mb-4">
+    <div class="flex-1 relative">
+      <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline text-[18px]">search</span>
+      <input id="search-input" type="text" placeholder="Search session ID or label…"
+             oninput="filterSessions()"
+             class="w-full pl-9 pr-4 py-2.5 bg-surface-container rounded-xl text-sm border border-outline-variant/20 focus:outline-none focus:ring-2 ring-primary/20" />
+    </div>
+    <select id="label-filter" onchange="filterSessions()"
+            class="px-4 py-2.5 bg-surface-container rounded-xl text-sm border border-outline-variant/20 focus:outline-none">
+      <option value="">All Labels</option>
+      <option>Anxiety</option>
+      <option>Depression</option>
+      <option>Stress</option>
+      <option>Normal</option>
+      <option>Bipolar</option>
+      <option>Suicidal</option>
+      <option>Personality disorder</option>
+    </select>
+  </div>
+
+  <!-- Sessions table -->
+  <div class="bg-surface-container-lowest rounded-2xl border border-outline-variant/10 overflow-hidden">
+    <div class="overflow-x-auto">
+      <table class="w-full text-sm">
+        <thead>
+          <tr class="border-b border-outline-variant/20 bg-surface-container-low">
+            <th class="text-left px-5 py-3 text-[10px] font-bold text-secondary uppercase tracking-widest">Session ID</th>
+            <th class="text-left px-5 py-3 text-[10px] font-bold text-secondary uppercase tracking-widest">User</th>
+            <th class="text-left px-5 py-3 text-[10px] font-bold text-secondary uppercase tracking-widest">Last Active</th>
+            <th class="text-left px-5 py-3 text-[10px] font-bold text-secondary uppercase tracking-widest">Last Label</th>
+            <th class="text-left px-5 py-3 text-[10px] font-bold text-secondary uppercase tracking-widest">Turns</th>
+            <th class="text-left px-5 py-3 text-[10px] font-bold text-secondary uppercase tracking-widest">Msgs</th>
+            <th class="text-right px-5 py-3 text-[10px] font-bold text-secondary uppercase tracking-widest">Actions</th>
+          </tr>
+        </thead>
+        <tbody id="sessions-tbody">
+          <tr><td colspan="7" class="text-center py-12 text-outline">Loading sessions…</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+</div>
+
+<!-- ══════════════════════════════════════════
+     CHAT HISTORY MODAL
+══════════════════════════════════════════ -->
+<div id="history-modal"
+     class="fixed inset-0 z-[200] hidden items-center justify-center p-4 bg-black/50 backdrop-blur-sm">
+  <div class="bg-surface rounded-2xl w-full max-w-2xl max-h-[90vh] flex flex-col shadow-2xl">
+
+    <!-- Modal header -->
+    <div class="flex items-center justify-between px-6 py-4 border-b border-outline-variant/20">
+      <div>
+        <h3 class="font-bold text-primary">Session History</h3>
+        <p id="modal-session-id" class="text-[11px] font-mono text-outline mt-0.5"></p>
+      </div>
+      <div class="flex gap-2">
+        <button id="modal-export-json" class="px-3 py-1.5 bg-primary-fixed text-on-primary-fixed-variant rounded-full text-[11px] font-bold hover:opacity-80 transition-opacity">JSON</button>
+        <button id="modal-export-csv"  class="px-3 py-1.5 bg-secondary-fixed text-on-secondary-fixed rounded-full text-[11px] font-bold hover:opacity-80 transition-opacity">CSV</button>
+        <button onclick="closeModal()" class="w-8 h-8 rounded-full flex items-center justify-center hover:bg-surface-container transition-colors">
+          <span class="material-symbols-outlined text-[20px] text-outline">close</span>
+        </button>
+      </div>
+    </div>
+
+    <!-- Messages -->
+    <div id="modal-messages" class="flex-1 overflow-y-auto px-6 py-4 space-y-3 chat-scroll"></div>
+
+    <!-- Counselor reply -->
+    <div class="px-6 py-4 border-t border-outline-variant/20 bg-surface-container-low rounded-b-2xl">
+      <p class="text-[10px] font-bold text-secondary uppercase tracking-widest mb-2">Send Manual Response</p>
+      <div class="flex gap-2">
+        <input id="counselor-input" type="text" placeholder="Type a counselor message…"
+               class="flex-1 px-4 py-2.5 bg-white rounded-xl text-sm border border-outline-variant/20 focus:outline-none focus:ring-2 ring-primary/20" />
+        <button onclick="sendCounselorReply()"
+                class="px-5 py-2.5 bg-primary text-white rounded-xl text-sm font-bold hover:opacity-90 active:scale-95 transition-all">
+          Send
+        </button>
+      </div>
+    </div>
+
+  </div>
+</div>
+{% endblock %}
+
+
+{% block extra_scripts %}
+<script>
+// ══════════════════════════════════════════════════════════════
+//  ADMIN ENGINE
+// ══════════════════════════════════════════════════════════════
+
+let ALL_SESSIONS   = [];
+let ACTIVE_SESSION = null;
+
+// ── Load stats + sessions on page load ───────────────────────
+async function loadStats() {
+  try {
+    const res  = await fetch('/admin/stats');
+    const data = await res.json();
+
+    document.getElementById('stat-sessions').textContent = data.total_sessions;
+    document.getElementById('stat-messages').textContent = data.total_messages;
+
+    // Top label
+    const dist = data.label_distribution || {};
+    const top  = Object.entries(dist).sort((a,b) => b[1]-a[1])[0];
+    document.getElementById('stat-top-label').textContent = top ? top[0] : 'None';
+
+    // AI Engine status (Ollama)
+    const gs  = data.gemini_status || {};
+    const gel = document.getElementById('stat-gemini');
+    if (gs.ready) {
+      gel.innerHTML = `<span class="text-green-600">✓ Groq · ${gs.model || 'ready'}</span>`;
+    } else {
+      gel.innerHTML = `<span class="text-[#664d03]">⚡ Fallback mode</span>`;
+      gel.title = gs.error || 'Groq offline — using fallback';
+    }
+
+    // Label distribution bars
+    const total = Object.values(dist).reduce((a,b)=>a+b, 0) || 1;
+    const barsEl = document.getElementById('label-bars');
+    barsEl.innerHTML = '';
+    Object.entries(dist).sort((a,b)=>b[1]-a[1]).forEach(([label, cnt]) => {
+      const pct = Math.round((cnt/total)*100);
+      barsEl.innerHTML += `
+        <div class="flex items-center gap-3">
+          <span class="w-32 text-xs font-medium text-on-surface-variant truncate">${escHtml(label)}</span>
+          <div class="flex-1 bg-surface-container rounded-full h-2 overflow-hidden">
+            <div class="h-full bg-primary rounded-full transition-all duration-700" style="width:${pct}%"></div>
+          </div>
+          <span class="w-10 text-right text-xs font-bold text-primary">${cnt}</span>
+        </div>`;
+    });
+
+    // Sessions table
+    ALL_SESSIONS = data.sessions || [];
+    renderSessions(ALL_SESSIONS);
+
+  } catch(e) {
+    document.getElementById('sessions-tbody').innerHTML =
+      `<tr><td colspan="6" class="text-center py-12 text-error">Failed to load: ${e.message}</td></tr>`;
+  }
+}
+
+// ── Render sessions table ─────────────────────────────────────
+function renderSessions(sessions) {
+  const tbody = document.getElementById('sessions-tbody');
+  if (!sessions.length) {
+    tbody.innerHTML = `<tr><td colspan="7" class="text-center py-12 text-outline">No sessions found.</td></tr>`;
+    return;
+  }
+  tbody.innerHTML = sessions.map(s => {
+    const labelClass = 'label-' + (s.last_label || 'Unknown').replace(/\s+/g,'-');
+    const time = s.last_active ? new Date(s.last_active+'Z').toLocaleString() : '—';
+    const isCrisis = s.last_label === 'Suicidal';
+    const userDisplay = s.username
+      ? `<span class="font-medium text-primary">${escHtml(s.username)}</span><br><span class="text-outline">${escHtml(s.user_id||'')}</span>`
+      : `<span class="text-outline italic">Guest</span>`;
+    return `
+      <tr class="border-b border-outline-variant/10 hover:bg-surface-container-low transition-colors slide-up
+                 ${isCrisis ? 'bg-error-container/10' : ''}">
+        <td class="px-5 py-3">
+          <span class="font-mono text-xs text-on-surface-variant">${escHtml(s.session_id.slice(0,16))}…</span>
+          ${isCrisis ? '<span class="ml-1 text-error text-xs font-bold">⚠️</span>' : ''}
+        </td>
+        <td class="px-5 py-3 text-xs">${userDisplay}</td>
+        <td class="px-5 py-3 text-xs text-secondary whitespace-nowrap">${time}</td>
+        <td class="px-5 py-3">
+          <span class="label-badge ${labelClass}">${escHtml(s.last_label)}</span>
+        </td>
+        <td class="px-5 py-3 text-xs font-bold text-on-surface">${s.turn_count}</td>
+        <td class="px-5 py-3 text-xs font-bold text-on-surface">${s.msg_count}</td>
+        <td class="px-5 py-3">
+          <div class="flex gap-1.5 justify-end flex-wrap">
+            <button onclick="openHistory('${escHtml(s.session_id)}')"
+                    class="px-3 py-1.5 bg-primary-fixed text-on-primary-fixed-variant rounded-full text-[11px] font-bold hover:opacity-80 transition-opacity flex items-center gap-1">
+              <span class="material-symbols-outlined text-[13px]">visibility</span> View
+            </button>
+            <a href="/admin/export/${encodeURIComponent(s.session_id)}/json"
+               class="px-3 py-1.5 bg-secondary-fixed text-on-secondary-fixed rounded-full text-[11px] font-bold hover:opacity-80 transition-opacity flex items-center gap-1">
+              <span class="material-symbols-outlined text-[13px]">download</span> JSON
+            </a>
+            <a href="/admin/export/${encodeURIComponent(s.session_id)}/csv"
+               class="px-3 py-1.5 bg-surface-container text-secondary rounded-full text-[11px] font-bold hover:opacity-80 transition-opacity flex items-center gap-1">
+              <span class="material-symbols-outlined text-[13px]">table_view</span> CSV
+            </a>
+            <button onclick="deleteSession('${escHtml(s.session_id)}')"
+                    class="px-3 py-1.5 bg-error-container text-on-error-container rounded-full text-[11px] font-bold hover:opacity-80 transition-opacity flex items-center gap-1">
+              <span class="material-symbols-outlined text-[13px]">delete</span>
+            </button>
+          </div>
+        </td>
+      </tr>`;
+  }).join('');
+}
+
+// ── Filter sessions ───────────────────────────────────────────
+function filterSessions() {
+  const q     = document.getElementById('search-input').value.toLowerCase();
+  const label = document.getElementById('label-filter').value;
+  const filtered = ALL_SESSIONS.filter(s => {
+    const matchQ = !q || s.session_id.toLowerCase().includes(q) ||
+                   (s.last_label||'').toLowerCase().includes(q);
+    const matchL = !label || s.last_label === label;
+    return matchQ && matchL;
+  });
+  renderSessions(filtered);
+}
+
+// ── Open history modal ────────────────────────────────────────
+async function openHistory(sessionId) {
+  ACTIVE_SESSION = sessionId;
+  document.getElementById('modal-session-id').textContent = sessionId;
+  document.getElementById('modal-export-json').onclick = () =>
+    window.location.href = `/admin/export/${encodeURIComponent(sessionId)}/json`;
+  document.getElementById('modal-export-csv').onclick = () =>
+    window.location.href = `/admin/export/${encodeURIComponent(sessionId)}/csv`;
+
+  const modal = document.getElementById('history-modal');
+  modal.classList.remove('hidden');
+  modal.classList.add('flex');
+
+  const msgEl = document.getElementById('modal-messages');
+  msgEl.innerHTML = '<p class="text-center text-outline py-8">Loading…</p>';
+
+  try {
+    const res  = await fetch(`/history/${encodeURIComponent(sessionId)}`);
+    const data = await res.json();
+    renderMessages(data.history || []);
+  } catch(e) {
+    msgEl.innerHTML = `<p class="text-center text-error py-8">Error: ${e.message}</p>`;
+  }
+}
+
+// ── Render messages inside modal ──────────────────────────────
+function renderMessages(messages) {
+  const el = document.getElementById('modal-messages');
+  if (!messages.length) {
+    el.innerHTML = '<p class="text-center text-outline py-8">No messages in this session.</p>';
+    return;
+  }
+  el.innerHTML = messages.map(m => {
+    const isUser      = m.role === 'user';
+    const isCounselor = m.role === 'counselor';
+    const isAssistant = m.role === 'assistant';
+    const time = m.timestamp ? new Date(m.timestamp+'Z').toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}) : '';
+    const labelClass = m.label ? 'label-' + m.label.replace(/\s+/g,'-') : '';
+
+    if (isUser) {
+      return `
+        <div class="flex flex-col items-end">
+          <div class="flex items-center gap-2 mb-1">
+            ${m.label ? `<span class="label-badge ${labelClass}">${escHtml(m.label)}</span>` : ''}
+            <span class="text-[10px] text-outline">${time}</span>
+          </div>
+          <div class="bg-secondary text-on-secondary rounded-2xl rounded-tr-sm px-4 py-3 max-w-sm">
+            <p class="text-sm leading-relaxed">${escHtml(m.content)}</p>
+          </div>
+        </div>`;
+    }
+    if (isCounselor) {
+      return `
+        <div class="flex flex-col items-start">
+          <div class="flex items-center gap-2 mb-1">
+            <span class="label-badge label-Manual">👨‍⚕️ Counselor</span>
+            <span class="text-[10px] text-outline">${time}</span>
+          </div>
+          <div class="bg-[#e8f4fd] border border-[#0d47a1]/20 rounded-2xl rounded-tl-sm px-4 py-3 max-w-sm">
+            <p class="text-sm leading-relaxed text-[#0d47a1]">${escHtml(m.content)}</p>
+          </div>
+        </div>`;
+    }
+    // assistant
+    return `
+      <div class="flex flex-col items-start">
+        <div class="flex items-center gap-2 mb-1">
+          <span class="text-[10px] text-outline">🤖 Dr. Aria · ${time}</span>
+        </div>
+        <div class="bg-surface-container-low border border-outline-variant/20 rounded-2xl rounded-tl-sm px-4 py-3 max-w-sm">
+          <p class="text-sm leading-relaxed whitespace-pre-wrap">${escHtml(m.content)}</p>
+        </div>
+      </div>`;
+  }).join('');
+
+  el.scrollTop = el.scrollHeight;
+}
+
+// ── Close modal ───────────────────────────────────────────────
+function closeModal() {
+  const modal = document.getElementById('history-modal');
+  modal.classList.add('hidden');
+  modal.classList.remove('flex');
+  ACTIVE_SESSION = null;
+}
+
+// ── Send counselor reply ──────────────────────────────────────
+async function sendCounselorReply() {
+  const input = document.getElementById('counselor-input');
+  const msg   = input.value.trim();
+  if (!msg || !ACTIVE_SESSION) return;
+
+  try {
+    const res = await fetch('/admin/respond', {
+      method:  'POST',
+      headers: {'Content-Type':'application/json'},
+      body:    JSON.stringify({session_id: ACTIVE_SESSION, message: msg}),
+    });
+    if (res.ok) {
+      input.value = '';
+      // Reload messages
+      const r    = await fetch(`/history/${encodeURIComponent(ACTIVE_SESSION)}`);
+      const data = await r.json();
+      renderMessages(data.history || []);
+    }
+  } catch(e) {
+    alert('Failed to send: ' + e.message);
+  }
+}
+
+// ── Delete single session ─────────────────────────────────────
+async function deleteSession(sessionId) {
+  if (!confirm(`Delete session ${sessionId.slice(0,20)}…?\n\nThis cannot be undone.`)) return;
+  try {
+    await fetch(`/admin/delete/${encodeURIComponent(sessionId)}`, {method:'DELETE'});
+    await loadStats();
+  } catch(e) {
+    alert('Delete failed: ' + e.message);
+  }
+}
+
+// ── Delete all sessions ───────────────────────────────────────
+async function confirmDeleteAll() {
+  if (!confirm('Delete ALL sessions and messages?\n\nThis CANNOT be undone.')) return;
+  try {
+    await fetch('/admin/delete-all', {method:'DELETE'});
+    await loadStats();
+  } catch(e) {
+    alert('Delete failed: ' + e.message);
+  }
+}
+
+// ── HTML escape ───────────────────────────────────────────────
+function escHtml(str) {
+  return String(str||'')
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+// ── Close modal on backdrop click ────────────────────────────
+document.getElementById('history-modal').addEventListener('click', function(e) {
+  if (e.target === this) closeModal();
+});
+
+// ── Init ──────────────────────────────────────────────────────
+loadStats();
+</script>
+{% endblock %}

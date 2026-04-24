@@ -1,0 +1,531 @@
+{% extends "base.html" %}
+{% block title %}AI Counselor — The Ethereal Clinic{% endblock %}
+
+{% block extra_head %}
+<style>
+  /* Chat bubble entrance */
+  @keyframes bubble-in {
+    from { opacity: 0; transform: translateY(10px) scale(.97); }
+    to   { opacity: 1; transform: translateY(0)   scale(1);    }
+  }
+  .bubble-in { animation: bubble-in .25s ease forwards; }
+
+  /* Input focus ring */
+  #chat-input:focus { outline: none; }
+</style>
+{% endblock %}
+
+{% block content %}
+<!-- ══════════════════════════════════════════════════════════════
+     CHAT PAGE  —  two-column layout on large screens
+══════════════════════════════════════════════════════════════ -->
+<div class="flex flex-col lg:flex-row flex-1 h-[calc(100dvh-4rem)] overflow-hidden">
+
+  <!-- ── LEFT: Chat column ─────────────────────────────────── -->
+  <section class="flex flex-col flex-1 min-w-0 overflow-hidden">
+
+    <!-- Sub-header -->
+    <div class="px-6 py-3 border-b border-outline-variant/20 flex items-center gap-3
+                bg-surface-container-lowest/80 backdrop-blur-sm">
+      <div class="w-2 h-2 rounded-full bg-green-400 animate-pulse"></div>
+      <span class="text-xs font-semibold text-secondary uppercase tracking-widest">
+        Session Active
+      </span>
+      <!-- Ollama status pill -->
+      <span id="llm-status-pill"
+            class="text-[10px] font-bold px-2 py-0.5 rounded-full bg-surface-container text-outline">
+        Checking AI…
+      </span>
+      <span id="session-badge"
+            class="ml-auto text-[10px] font-mono text-outline bg-surface-container px-2 py-0.5 rounded">
+        —
+      </span>
+    </div>
+
+    <!-- ── Message feed ── -->
+    <div id="chat-feed"
+         class="flex-1 overflow-y-auto chat-scroll px-4 md:px-8 py-6 space-y-6 pb-4">
+
+      <!-- Welcome message (static) -->
+      <div class="flex flex-col items-start max-w-xl bubble-in">
+        <div class="flex items-center gap-2 mb-1.5 ml-1">
+          <span class="bg-secondary-fixed text-on-secondary-fixed text-[10px] px-2 py-0.5
+                       rounded-full font-bold uppercase tracking-tighter">
+            Dr. Aria · Online
+          </span>
+          <span class="text-[10px] text-outline" id="welcome-time"></span>
+        </div>
+        <div class="glass rounded-2xl rounded-tl-sm px-5 py-4 text-on-surface
+                    shadow-sm border border-white/40 max-w-full">
+          <p class="leading-relaxed text-sm" id="welcome-msg">
+            Good day. I'm Dr. Aria, your AI counselor at The Ethereal Clinic.
+            Everything you share here is private and stored only for this session.
+            How are you feeling right now?
+          </p>
+        </div>
+      </div>
+
+    </div><!-- /chat-feed -->
+
+    <!-- ── Input bar ── -->
+    <div class="px-4 md:px-8 py-4 border-t border-outline-variant/20
+                bg-surface-container-lowest/80 backdrop-blur-sm">
+      <div class="relative glass rounded-full shadow-[0_8px_32px_-4px_rgba(34,104,104,0.12)]
+                  border border-white/60 p-1.5 flex items-center gap-2
+                  focus-within:ring-2 ring-primary/25 transition-all duration-200">
+
+        <!-- Attachment -->
+        <button class="w-10 h-10 rounded-full flex items-center justify-center
+                       text-outline hover:text-primary hover:bg-surface-container-low
+                       transition-colors flex-shrink-0"
+                title="Attach file">
+          <span class="material-symbols-outlined text-[20px]">add_circle</span>
+        </button>
+
+        <!-- Text input -->
+        <input id="chat-input"
+               type="text"
+               placeholder="Tell me how you're feeling…"
+               autocomplete="off"
+               class="flex-grow bg-transparent border-none focus:ring-0 text-on-surface
+                      placeholder:text-on-surface-variant/50 text-sm py-2 min-w-0" />
+
+        <!-- Mic -->
+        <button class="w-10 h-10 rounded-full flex items-center justify-center
+                       text-outline hover:text-primary hover:bg-surface-container-low
+                       transition-colors flex-shrink-0"
+                title="Voice input">
+          <span class="material-symbols-outlined text-[20px]">mic</span>
+        </button>
+
+        <!-- Send -->
+        <button id="send-btn"
+                onclick="sendMessage()"
+                class="bg-primary text-white w-10 h-10 rounded-full flex items-center
+                       justify-center shadow-md active:scale-90 duration-150
+                       hover:bg-primary-container transition-colors flex-shrink-0"
+                title="Send">
+          <span class="material-symbols-outlined text-[20px]"
+                style="font-variation-settings:'FILL' 1;">send</span>
+        </button>
+      </div>
+
+      <p class="text-center text-[10px] text-outline mt-3 tracking-wide">
+        The Ethereal Clinic AI provides supportive guidance only.
+        For emergencies, tap <strong>Emergency Help</strong> above.
+      </p>
+    </div>
+
+  </section><!-- /chat column -->
+
+  <!-- ── RIGHT: Dashboard panel (hidden on mobile, visible lg+) ── -->
+  <aside class="hidden lg:flex flex-col w-80 xl:w-96 border-l border-outline-variant/20
+                bg-surface-container-lowest overflow-y-auto chat-scroll">
+
+    <!-- Weekly mood chart -->
+    <div class="p-6 border-b border-outline-variant/10">
+      <div class="flex items-end justify-between mb-4">
+        <div>
+          <h3 class="text-sm font-bold text-primary">Weekly Mood Trend</h3>
+          <p class="text-[10px] text-secondary uppercase tracking-widest font-bold mt-0.5">
+            Last 7 days
+          </p>
+        </div>
+        <span class="px-2 py-0.5 bg-primary-fixed text-on-primary-fixed-variant
+                     text-[10px] font-bold rounded-full uppercase">
+          Index: 84%
+        </span>
+      </div>
+      <!-- Bar chart -->
+      <div class="flex items-end justify-between gap-1.5 h-28 px-1">
+        <div class="flex flex-col items-center gap-1 flex-1">
+          <div class="w-full bg-secondary-container rounded-t-lg bar" style="height:40%"></div>
+          <span class="text-[9px] font-bold text-outline">M</span>
+        </div>
+        <div class="flex flex-col items-center gap-1 flex-1">
+          <div class="w-full bg-secondary-container rounded-t-lg bar" style="height:65%"></div>
+          <span class="text-[9px] font-bold text-outline">T</span>
+        </div>
+        <div class="flex flex-col items-center gap-1 flex-1">
+          <div class="w-full bg-primary rounded-t-lg bar shadow-[0_4px_12px_rgba(34,104,104,0.25)]"
+               style="height:85%"></div>
+          <span class="text-[9px] font-bold text-primary">W</span>
+        </div>
+        <div class="flex flex-col items-center gap-1 flex-1">
+          <div class="w-full bg-secondary-container rounded-t-lg bar" style="height:55%"></div>
+          <span class="text-[9px] font-bold text-outline">T</span>
+        </div>
+        <div class="flex flex-col items-center gap-1 flex-1">
+          <div class="w-full bg-secondary-container rounded-t-lg bar" style="height:70%"></div>
+          <span class="text-[9px] font-bold text-outline">F</span>
+        </div>
+        <div class="flex flex-col items-center gap-1 flex-1">
+          <div class="w-full bg-secondary-container rounded-t-lg bar" style="height:90%"></div>
+          <span class="text-[9px] font-bold text-outline">S</span>
+        </div>
+        <div class="flex flex-col items-center gap-1 flex-1">
+          <div class="w-full bg-secondary-container rounded-t-lg bar" style="height:75%"></div>
+          <span class="text-[9px] font-bold text-outline">S</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- Current session state -->
+    <div class="p-6 border-b border-outline-variant/10">
+      <h3 class="text-sm font-bold text-primary mb-3 flex items-center gap-2">
+        <span class="material-symbols-outlined text-[18px]">psychology</span>
+        Current Detection
+      </h3>
+      <div id="label-display"
+           class="flex items-center gap-3 p-3 bg-surface-container rounded-xl">
+        <span class="material-symbols-outlined text-outline text-[22px]"
+              style="font-variation-settings:'FILL' 1;">radio_button_unchecked</span>
+        <div>
+          <p class="text-xs text-outline">Awaiting input…</p>
+          <p id="label-text" class="text-sm font-bold text-on-surface">—</p>
+        </div>
+      </div>
+    </div>
+
+    <!-- Detected triggers -->
+    <div class="p-6 border-b border-outline-variant/10">
+      <h4 class="text-sm font-bold text-primary mb-3 flex items-center gap-2">
+        <span class="material-symbols-outlined text-[18px]">warning</span>
+        Detected Triggers
+      </h4>
+      <div id="triggers-list" class="flex flex-wrap gap-2">
+        <span class="px-3 py-1.5 bg-surface-container rounded-lg text-xs font-medium text-secondary">
+          Work Deadlines
+        </span>
+        <span class="px-3 py-1.5 bg-surface-container rounded-lg text-xs font-medium text-secondary">
+          Caffeine
+        </span>
+        <span class="px-3 py-1.5 bg-surface-container rounded-lg text-xs font-medium text-secondary">
+          Late Sleep
+        </span>
+        <span class="px-3 py-1.5 bg-surface-container rounded-lg text-xs font-medium text-secondary">
+          Social Interaction
+        </span>
+      </div>
+    </div>
+
+    <!-- Wellness checklist -->
+    <div class="p-6 border-b border-outline-variant/10">
+      <h4 class="text-sm font-bold text-primary mb-4">Wellness Checklist</h4>
+      <ul class="space-y-3">
+        <li class="flex items-center gap-3">
+          <span class="material-symbols-outlined text-primary text-[20px]"
+                style="font-variation-settings:'FILL' 1;">check_circle</span>
+          <span class="text-sm text-on-surface">15m Meditation</span>
+        </li>
+        <li class="flex items-center gap-3">
+          <span class="material-symbols-outlined text-primary text-[20px]"
+                style="font-variation-settings:'FILL' 1;">check_circle</span>
+          <span class="text-sm text-on-surface">Journal Entry</span>
+        </li>
+        <li class="flex items-center gap-3">
+          <span class="material-symbols-outlined text-outline text-[20px]">radio_button_unchecked</span>
+          <span class="text-sm text-secondary">Evening Walk</span>
+        </li>
+      </ul>
+    </div>
+
+    <!-- Daily insight card -->
+    <div class="p-6">
+      <div class="bg-primary text-white p-6 rounded-2xl relative overflow-hidden">
+        <div class="relative z-10">
+          <h3 class="text-sm font-bold mb-2">Daily Insight</h3>
+          <p class="text-primary-fixed text-xs leading-relaxed mb-4">
+            Your mood typically improves by 22% on days when you record an entry before 10 AM.
+          </p>
+          <button class="w-full bg-white text-primary font-bold py-2.5 rounded-full
+                         text-[11px] uppercase tracking-widest hover:bg-primary-fixed
+                         transition-colors active:scale-95">
+            Log New Entry
+          </button>
+        </div>
+        <div class="absolute -right-6 -bottom-6 w-28 h-28 bg-primary-container
+                    rounded-full opacity-20 blur-2xl pointer-events-none"></div>
+        <div class="absolute -left-6 -top-6 w-20 h-20 bg-primary-fixed-dim
+                    rounded-full opacity-10 blur-xl pointer-events-none"></div>
+      </div>
+    </div>
+
+  </aside><!-- /dashboard panel -->
+
+</div><!-- /flex layout -->
+{% endblock %}
+
+
+{% block extra_scripts %}
+<script>
+// ══════════════════════════════════════════════════════════════
+//  CHAT ENGINE
+// ══════════════════════════════════════════════════════════════
+
+// ── Session ID (persisted in localStorage) ────────────────────
+const SESSION_ID = (() => {
+  let id = localStorage.getItem('ec_session_id');
+  if (!id) {
+    id = 'sess_' + Math.random().toString(36).slice(2, 11) + '_' + Date.now();
+    localStorage.setItem('ec_session_id', id);
+  }
+  return id;
+})();
+
+document.getElementById('session-badge').textContent = SESSION_ID.slice(0, 18) + '…';
+document.getElementById('welcome-time').textContent = fmtTime(new Date());
+
+// ── Check Ollama status + personalise welcome ─────────────────
+(async function initPage() {
+  // Personalise welcome with user's name
+  try {
+    const r = await fetch('/me');
+    if (r.ok) {
+      const u = await r.json();
+      const name = u.full_name || u.username || '';
+      if (name) {
+        document.getElementById('welcome-msg').textContent =
+          `Good day, ${name}! I'm Dr. Aria, your AI counselor at The Ethereal Clinic. ` +
+          `Everything you share here is private. How are you feeling right now?`;
+      }
+    }
+  } catch (_) {}
+
+  // Check Ollama / LLM status
+  try {
+    const r    = await fetch('/health');
+    const data = await r.json();
+    const pill = document.getElementById('llm-status-pill');
+    if (data.llm_ready) {
+      pill.textContent  = `✓ Dr. Aria · Local AI`;
+      pill.className    = 'text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#cfe9d2] text-[#0a2012]';
+    } else {
+      pill.textContent  = '⚡ Smart Fallback';
+      pill.className    = 'text-[10px] font-bold px-2 py-0.5 rounded-full bg-[#fff3cd] text-[#664d03]';
+      pill.title        = data.llm_error || 'LLM loading — using BERT fallback responses';
+    }
+  } catch (_) {
+    document.getElementById('llm-status-pill').textContent = 'AI Ready';
+  }
+})();
+
+// ── Helpers ───────────────────────────────────────────────────
+function fmtTime(d) {
+  return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+}
+
+function scrollBottom() {
+  const feed = document.getElementById('chat-feed');
+  feed.scrollTo({ top: feed.scrollHeight, behavior: 'smooth' });
+}
+
+// ── Label → badge colour map ──────────────────────────────────
+const LABEL_STYLES = {
+  'Anxiety':              'bg-tertiary-fixed text-on-tertiary-fixed',
+  'Depression':           'bg-[#ffdad6] text-[#93000a]',
+  'Stress':               'bg-[#ffdbcc] text-[#351000]',
+  'Normal':               'bg-secondary-fixed text-on-secondary-fixed',
+  'Bipolar':              'bg-[#e8def8] text-[#21005d]',
+  'Personality disorder': 'bg-[#fce4ec] text-[#880e4f]',
+  'Suicidal':             'bg-error-container text-on-error-container',
+};
+
+function labelBadgeClass(label) {
+  return LABEL_STYLES[label] || 'bg-surface-container text-on-surface-variant';
+}
+
+// ── Append a message bubble ───────────────────────────────────
+function appendBubble({ role, content, label, timestamp }) {
+  const feed = document.getElementById('chat-feed');
+  const time = timestamp
+    ? fmtTime(new Date(timestamp + 'Z'))
+    : fmtTime(new Date());
+
+  const wrapper = document.createElement('div');
+
+  if (role === 'user') {
+    wrapper.className = 'flex flex-col items-end ml-auto max-w-xl bubble-in';
+    wrapper.innerHTML = `
+      <div class="flex items-center gap-2 mb-1.5 mr-1">
+        <span class="text-[10px] text-outline">${time}</span>
+      </div>
+      <div class="bg-secondary text-on-secondary rounded-2xl rounded-tr-sm px-5 py-4 shadow-md">
+        <p class="leading-relaxed text-sm">${escHtml(content)}</p>
+      </div>`;
+  } else {
+    // Detect crisis content
+    const isCrisis = content.includes('CRISIS ALERT') || content.includes('988');
+    const badgeClass = label ? labelBadgeClass(label) : 'bg-secondary-fixed text-on-secondary-fixed';
+    const badgeLabel = label || 'Analyzing…';
+    const bubbleClass = isCrisis
+      ? 'border-2 border-error/40 bg-error-container/30'
+      : 'glass border border-white/40';
+
+    wrapper.className = 'flex flex-col items-start max-w-xl bubble-in';
+    wrapper.innerHTML = `
+      <div class="flex items-center gap-2 mb-1.5 ml-1">
+        <span class="${badgeClass} text-[10px] px-2 py-0.5 rounded-full font-bold uppercase tracking-tighter">
+          ${isCrisis ? '⚠️ Crisis Detected' : 'Detected: ' + escHtml(badgeLabel)}
+        </span>
+        <span class="text-[10px] text-outline">${time}</span>
+      </div>
+      <div class="${bubbleClass} rounded-2xl rounded-tl-sm px-5 py-4 text-on-surface shadow-sm max-w-full">
+        <p class="leading-relaxed text-sm whitespace-pre-wrap">${escHtml(content)}</p>
+      </div>`;
+  }
+
+  feed.appendChild(wrapper);
+  scrollBottom();
+}
+
+// ── Typing indicator ──────────────────────────────────────────
+function showTyping() {
+  const feed = document.getElementById('chat-feed');
+  const el = document.createElement('div');
+  el.id = 'typing-indicator';
+  el.className = 'flex items-start max-w-xl bubble-in';
+  el.innerHTML = `
+    <div class="glass rounded-2xl rounded-tl-sm px-5 py-4 border border-white/40 shadow-sm">
+      <div class="flex gap-1.5 items-center h-4">
+        <span class="dot w-2 h-2 rounded-full bg-primary inline-block"></span>
+        <span class="dot w-2 h-2 rounded-full bg-primary inline-block"></span>
+        <span class="dot w-2 h-2 rounded-full bg-primary inline-block"></span>
+      </div>
+    </div>`;
+  feed.appendChild(el);
+  scrollBottom();
+}
+
+function hideTyping() {
+  const el = document.getElementById('typing-indicator');
+  if (el) el.remove();
+}
+
+// ── Update right-panel detection display ─────────────────────
+function updateLabelPanel(label, isCrisis) {
+  const display = document.getElementById('label-display');
+  const text    = document.getElementById('label-text');
+  text.textContent = label || '—';
+
+  if (isCrisis) {
+    display.className = 'flex items-center gap-3 p-3 bg-error-container rounded-xl';
+    display.querySelector('.material-symbols-outlined').textContent = 'emergency';
+    display.querySelector('.material-symbols-outlined').className =
+      'material-symbols-outlined text-error text-[22px]';
+    display.querySelector('.text-xs').textContent = '⚠️ Crisis detected';
+    text.className = 'text-sm font-bold text-error';
+  } else {
+    const cls = labelBadgeClass(label);
+    display.className = 'flex items-center gap-3 p-3 bg-surface-container rounded-xl';
+    display.querySelector('.material-symbols-outlined').textContent = 'psychology';
+    display.querySelector('.material-symbols-outlined').className =
+      'material-symbols-outlined text-primary text-[22px]';
+    display.querySelector('.text-xs').textContent = 'BERT classification';
+    text.className = 'text-sm font-bold text-on-surface';
+  }
+}
+
+// ── HTML escape ───────────────────────────────────────────────
+function escHtml(str) {
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+}
+
+// ── Send message ──────────────────────────────────────────────
+async function sendMessage() {
+  const input = document.getElementById('chat-input');
+  const btn   = document.getElementById('send-btn');
+  const text  = input.value.trim();
+  if (!text) return;
+
+  // Append user bubble immediately
+  appendBubble({ role: 'user', content: text });
+  input.value = '';
+  btn.disabled = true;
+  showTyping();
+
+  try {
+    const res = await fetch('/chat', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ session_id: SESSION_ID, message: text }),
+    });
+
+    hideTyping();
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({}));
+      appendBubble({
+        role:    'assistant',
+        content: '⚠️ Server error: ' + (err.error || res.statusText),
+        label:   null,
+      });
+      return;
+    }
+
+    const data = await res.json();
+
+    // If crisis, show emergency modal automatically
+    if (data.is_crisis) {
+      showEmergency();
+    }
+
+    appendBubble({
+      role:      'assistant',
+      content:   data.response,
+      label:     data.label,
+      timestamp: null,
+    });
+
+    updateLabelPanel(data.label, data.is_crisis);
+
+    // Show LLM engine info in console
+    if (data.llm_engine) {
+      console.info('[LLM]', data.llm_engine, data.llm_used ? '✓' : '✗ fallback');
+    }
+    if (data.llm_error) {
+      console.warn('[LLM error]', data.llm_error);
+    }
+
+  } catch (e) {
+    hideTyping();
+    appendBubble({
+      role:    'assistant',
+      content: '⚠️ Could not reach the server. Please check your connection.',
+      label:   null,
+    });
+  } finally {
+    btn.disabled = false;
+    input.focus();
+  }
+}
+
+// ── Enter key to send ─────────────────────────────────────────
+document.getElementById('chat-input').addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    sendMessage();
+  }
+});
+
+// ── Load existing history on page load ───────────────────────
+(async function loadHistory() {
+  try {
+    const res = await fetch(`/history/${SESSION_ID}`);
+    if (!res.ok) return;
+    const data = await res.json();
+    if (data.history && data.history.length > 0) {
+      data.history.forEach(msg => appendBubble(msg));
+      // Update label panel with last known state
+      if (data.state && data.state.last_label) {
+        updateLabelPanel(data.state.last_label, false);
+      }
+    }
+  } catch (_) { /* silent — fresh session */ }
+})();
+</script>
+{% endblock %}

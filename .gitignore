@@ -1,0 +1,15 @@
+# Environment secrets — never commit this
+.env
+
+# Virtual environment
+venv/
+__pycache__/
+*.pyc
+
+# Database
+chat_history.db
+
+# Python
+*.egg-info/
+dist/
+build/

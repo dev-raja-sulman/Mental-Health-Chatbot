@@ -1,0 +1,287 @@
+<!DOCTYPE html>
+<html class="light" lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>{% if mode == 'signup' %}Sign Up{% else %}Sign In{% endif %} — The Ethereal Clinic</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet" />
+  <script src="https://cdn.tailwindcss.com?plugins=forms"></script>
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          colors: {
+            "primary":               "#226868",
+            "primary-fixed":         "#aceeee",
+            "on-primary-fixed":      "#002020",
+            "on-primary-fixed-variant": "#004f50",
+            "surface":               "#f8fafa",
+            "surface-container":     "#eceeee",
+            "surface-container-low": "#f2f4f4",
+            "on-surface":            "#191c1d",
+            "on-surface-variant":    "#3f4948",
+            "secondary":             "#4d6452",
+            "secondary-container":   "#cce6cf",
+            "outline-variant":       "#bfc8c8",
+            "error":                 "#ba1a1a",
+            "error-container":       "#ffdad6",
+            "on-error-container":    "#93000a",
+          },
+          fontFamily: { body: ["Inter","sans-serif"] },
+        },
+      },
+    };
+  </script>
+  <style>
+    .material-symbols-outlined {
+      font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+    }
+    @keyframes fade-up {
+      from { opacity:0; transform:translateY(24px); }
+      to   { opacity:1; transform:translateY(0); }
+    }
+    .fade-up { animation: fade-up .4s ease forwards; }
+
+    .blob {
+      position: absolute; border-radius: 9999px;
+      filter: blur(80px); opacity: 0.12;
+      animation: drift 9s ease-in-out infinite alternate;
+    }
+    @keyframes drift {
+      from { transform: translate(0,0) scale(1); }
+      to   { transform: translate(24px,18px) scale(1.08); }
+    }
+
+    /* Tab underline */
+    .tab-active { border-bottom: 2px solid #226868; color: #226868; font-weight: 700; }
+    .tab-inactive { border-bottom: 2px solid transparent; color: #6f7979; }
+  </style>
+</head>
+
+<body class="bg-surface font-body text-on-surface min-h-screen flex items-center justify-center relative overflow-hidden px-4">
+
+  <!-- Background blobs -->
+  <div class="blob w-[500px] h-[500px] bg-[#226868] -top-32 -left-32"></div>
+  <div class="blob w-80 h-80 bg-[#aceeee] -bottom-20 -right-20" style="animation-delay:3s"></div>
+  <div class="blob w-56 h-56 bg-[#cce6cf] top-1/3 right-1/4" style="animation-delay:6s"></div>
+
+  <div class="relative z-10 w-full max-w-md fade-up">
+
+    <!-- Branding -->
+    <div class="text-center mb-8">
+      <div class="w-16 h-16 bg-primary rounded-2xl flex items-center justify-center mx-auto mb-4
+                  shadow-[0_8px_32px_rgba(34,104,104,0.35)]">
+        <span class="material-symbols-outlined text-white text-3xl"
+              style="font-variation-settings:'FILL' 1;">psychology</span>
+      </div>
+      <h1 class="text-2xl font-black text-primary tracking-tight">The Ethereal Clinic</h1>
+      <p class="text-sm text-secondary mt-1">Your safe space for mental health support</p>
+    </div>
+
+    <!-- Card -->
+    <div class="bg-white/80 backdrop-blur-2xl rounded-3xl shadow-[0_24px_64px_-12px_rgba(34,104,104,0.16)]
+                border border-white/60 overflow-hidden">
+
+      <!-- Tabs -->
+      <div class="flex border-b border-outline-variant/20">
+        <a href="/login"
+           class="flex-1 text-center py-4 text-sm transition-all duration-200
+                  {% if mode == 'login' %}tab-active{% else %}tab-inactive hover:text-primary{% endif %}">
+          Sign In
+        </a>
+        <a href="/signup"
+           class="flex-1 text-center py-4 text-sm transition-all duration-200
+                  {% if mode == 'signup' %}tab-active{% else %}tab-inactive hover:text-primary{% endif %}">
+          Create Account
+        </a>
+      </div>
+
+      <div class="p-8">
+
+        <!-- Error -->
+        {% if error %}
+        <div class="flex items-start gap-3 bg-error-container text-on-error-container
+                    rounded-xl px-4 py-3 mb-5 text-sm">
+          <span class="material-symbols-outlined text-[18px] mt-0.5 flex-shrink-0">error</span>
+          <span>{{ error }}</span>
+        </div>
+        {% endif %}
+
+        <!-- Success -->
+        {% if success %}
+        <div class="flex items-start gap-3 bg-[#cce6cf] text-[#0a2012]
+                    rounded-xl px-4 py-3 mb-5 text-sm">
+          <span class="material-symbols-outlined text-[18px] mt-0.5 flex-shrink-0">check_circle</span>
+          <span>{{ success }}</span>
+        </div>
+        {% endif %}
+
+        <!-- ══ LOGIN FORM ══ -->
+        {% if mode == 'login' %}
+        <form method="POST" action="/login" class="space-y-4">
+
+          <div>
+            <label class="block text-[11px] font-bold text-secondary uppercase tracking-widest mb-1.5">
+              Username or Email
+            </label>
+            <div class="relative">
+              <span class="material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-outline text-[20px]">person</span>
+              <input type="text" name="identifier" placeholder="Enter username or email"
+                     autocomplete="username" required
+                     class="w-full pl-11 pr-4 py-3 bg-surface-container border border-outline-variant/30
+                            rounded-xl text-sm focus:outline-none focus:ring-2 ring-primary/25 transition-all
+                            placeholder:text-on-surface-variant/40" />
+            </div>
+          </div>
+
+          <div>
+            <label class="block text-[11px] font-bold text-secondary uppercase tracking-widest mb-1.5">
+              Password
+            </label>
+            <div class="relative">
+              <span class="material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-outline text-[20px]">lock</span>
+              <input type="password" id="pw-login" name="password" placeholder="Enter your password"
+                     autocomplete="current-password" required
+                     class="w-full pl-11 pr-12 py-3 bg-surface-container border border-outline-variant/30
+                            rounded-xl text-sm focus:outline-none focus:ring-2 ring-primary/25 transition-all
+                            placeholder:text-on-surface-variant/40" />
+              <button type="button" onclick="togglePw('pw-login','eye-login')"
+                      class="absolute right-3.5 top-1/2 -translate-y-1/2 text-outline hover:text-primary transition-colors">
+                <span id="eye-login" class="material-symbols-outlined text-[20px]">visibility</span>
+              </button>
+            </div>
+          </div>
+
+          <button type="submit"
+                  class="w-full bg-primary text-white py-3.5 rounded-xl font-bold text-sm mt-2
+                         hover:opacity-90 active:scale-[.98] transition-all shadow-md shadow-primary/20">
+            Sign In
+          </button>
+
+        </form>
+
+        <p class="text-center text-xs text-secondary mt-5">
+          Don't have an account?
+          <a href="/signup" class="text-primary font-bold hover:underline">Create one</a>
+        </p>
+
+        {% else %}
+        <!-- ══ SIGNUP FORM ══ -->
+        <form method="POST" action="/signup" class="space-y-4">
+
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-[11px] font-bold text-secondary uppercase tracking-widest mb-1.5">
+                Full Name
+              </label>
+              <div class="relative">
+                <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline text-[18px]">badge</span>
+                <input type="text" name="full_name" placeholder="Your name"
+                       class="w-full pl-9 pr-3 py-3 bg-surface-container border border-outline-variant/30
+                              rounded-xl text-sm focus:outline-none focus:ring-2 ring-primary/25 transition-all
+                              placeholder:text-on-surface-variant/40" />
+              </div>
+            </div>
+            <div>
+              <label class="block text-[11px] font-bold text-secondary uppercase tracking-widest mb-1.5">
+                Username <span class="text-error">*</span>
+              </label>
+              <div class="relative">
+                <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline text-[18px]">alternate_email</span>
+                <input type="text" name="username" placeholder="username" required
+                       class="w-full pl-9 pr-3 py-3 bg-surface-container border border-outline-variant/30
+                              rounded-xl text-sm focus:outline-none focus:ring-2 ring-primary/25 transition-all
+                              placeholder:text-on-surface-variant/40" />
+              </div>
+            </div>
+          </div>
+
+          <div>
+            <label class="block text-[11px] font-bold text-secondary uppercase tracking-widest mb-1.5">
+              Email <span class="text-error">*</span>
+            </label>
+            <div class="relative">
+              <span class="material-symbols-outlined absolute left-3.5 top-1/2 -translate-y-1/2 text-outline text-[20px]">mail</span>
+              <input type="email" name="email" placeholder="you@example.com" required
+                     autocomplete="email"
+                     class="w-full pl-11 pr-4 py-3 bg-surface-container border border-outline-variant/30
+                            rounded-xl text-sm focus:outline-none focus:ring-2 ring-primary/25 transition-all
+                            placeholder:text-on-surface-variant/40" />
+            </div>
+          </div>
+
+          <div class="grid grid-cols-2 gap-3">
+            <div>
+              <label class="block text-[11px] font-bold text-secondary uppercase tracking-widest mb-1.5">
+                Password <span class="text-error">*</span>
+              </label>
+              <div class="relative">
+                <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline text-[18px]">lock</span>
+                <input type="password" id="pw-signup" name="password" placeholder="Password" required
+                       class="w-full pl-9 pr-10 py-3 bg-surface-container border border-outline-variant/30
+                              rounded-xl text-sm focus:outline-none focus:ring-2 ring-primary/25 transition-all
+                              placeholder:text-on-surface-variant/40" />
+                <button type="button" onclick="togglePw('pw-signup','eye-signup')"
+                        class="absolute right-2.5 top-1/2 -translate-y-1/2 text-outline hover:text-primary transition-colors">
+                  <span id="eye-signup" class="material-symbols-outlined text-[18px]">visibility</span>
+                </button>
+              </div>
+            </div>
+            <div>
+              <label class="block text-[11px] font-bold text-secondary uppercase tracking-widest mb-1.5">
+                Confirm <span class="text-error">*</span>
+              </label>
+              <div class="relative">
+                <span class="material-symbols-outlined absolute left-3 top-1/2 -translate-y-1/2 text-outline text-[18px]">lock_reset</span>
+                <input type="password" name="confirm" placeholder="Repeat" required
+                       class="w-full pl-9 pr-3 py-3 bg-surface-container border border-outline-variant/30
+                              rounded-xl text-sm focus:outline-none focus:ring-2 ring-primary/25 transition-all
+                              placeholder:text-on-surface-variant/40" />
+              </div>
+            </div>
+          </div>
+
+          <!-- Patient ID preview note -->
+          <div class="flex items-center gap-2 bg-primary-fixed/40 rounded-xl px-4 py-3">
+            <span class="material-symbols-outlined text-primary text-[18px]">info</span>
+            <p class="text-xs text-on-surface-variant">
+              A unique <strong>Patient ID</strong> (e.g. EC-A3F2B1) will be generated for you automatically.
+            </p>
+          </div>
+
+          <button type="submit"
+                  class="w-full bg-primary text-white py-3.5 rounded-xl font-bold text-sm mt-1
+                         hover:opacity-90 active:scale-[.98] transition-all shadow-md shadow-primary/20">
+            Create My Account
+          </button>
+
+        </form>
+
+        <p class="text-center text-xs text-secondary mt-5">
+          Already have an account?
+          <a href="/login" class="text-primary font-bold hover:underline">Sign in</a>
+        </p>
+        {% endif %}
+
+      </div>
+    </div>
+
+    <p class="text-center text-[11px] text-outline mt-6">
+      Your data is private and secure · The Ethereal Clinic
+    </p>
+
+  </div>
+
+  <script>
+    function togglePw(inputId, iconId) {
+      const input = document.getElementById(inputId);
+      const icon  = document.getElementById(iconId);
+      input.type  = input.type === 'password' ? 'text' : 'password';
+      icon.textContent = input.type === 'password' ? 'visibility' : 'visibility_off';
+    }
+  </script>
+</body>
+</html>
